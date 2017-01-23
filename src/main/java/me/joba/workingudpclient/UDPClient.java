@@ -5,6 +5,9 @@
  */
 package me.joba.workingudpclient;
 
+import com.martiansoftware.jsap.FlaggedOption;
+import com.martiansoftware.jsap.JSAP;
+import com.martiansoftware.jsap.JSAPResult;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,6 +16,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -32,36 +36,55 @@ public class UDPClient {
     private static ChannelHandler channelHandler;
     
     public static void main(String[] args) throws Exception {
-        BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-        InetAddress target;
-        InetSocketAddress natBypassServer;
-        String token;
-        String[] rules;
-        if (args.length >= 4) {
-            target = InetAddress.getByName(args[0]);
-            String[] serverData = args[1].split(":");
-            natBypassServer = new InetSocketAddress(InetAddress.getByName(serverData[0]), serverData.length == 1 ? DEFAULT_PORT : Integer.parseInt(serverData[1]));
-            token = args[2];
-            rules = args[3].split(";");
-        } else {
-            System.out.print("Target: ");
-            target = InetAddress.getByName(inFromUser.readLine());
-            System.out.print("Bypass: ");
-            String[] serverData = inFromUser.readLine().split(":");
-            natBypassServer = new InetSocketAddress(InetAddress.getByName(serverData[0]), serverData.length == 1 ? DEFAULT_PORT : Integer.parseInt(serverData[1]));
-            System.out.print("Token: ");
-            token = inFromUser.readLine();
-            System.out.print("Rules: ");
-            rules = inFromUser.readLine().split(";");
+        JSAP jsap = new JSAP();
+        FlaggedOption targetIp = new FlaggedOption("targetIp")
+                                    .setStringParser(JSAP.INETADDRESS_PARSER)
+                                    .setRequired(true)
+                                    .setShortFlag('d')
+                                    .setLongFlag("destination");
+        FlaggedOption relayIp = new FlaggedOption("relayIp")
+                                    .setStringParser(JSAP.INETADDRESS_PARSER)
+                                    .setRequired(true)
+                                    .setShortFlag('r')
+                                    .setLongFlag("relay");
+        FlaggedOption relayPort = new FlaggedOption("relayPort")
+                                    .setStringParser(JSAP.INTEGER_PARSER)
+                                    .setRequired(true)
+                                    .setDefault("52125")
+                                    .setShortFlag('p')
+                                    .setLongFlag("port");
+        FlaggedOption token = new FlaggedOption("token")
+                                    .setRequired(true)
+                                    .setShortFlag('t')
+                                    .setLongFlag("token");
+        FlaggedOption rules = new FlaggedOption("rules")
+                                    .setRequired(false)
+                                    .setLongFlag("rules");
+        jsap.registerParameter(targetIp);
+        jsap.registerParameter(relayIp);
+        jsap.registerParameter(relayPort);
+        jsap.registerParameter(token);
+        jsap.registerParameter(rules);
+        JSAPResult config = jsap.parse(args);   
+        System.out.println(Arrays.toString(config.getStringArray("test")));
+        if (!config.success()) {
+            System.err.println();
+            System.err.println("Usage: " + jsap.getUsage());
+            System.err.println();
+            System.exit(0);
         }
-        NATHole hole = UDPHoleCreator.createHole(token, target, natBypassServer);
+        InetSocketAddress natBypassServer = new InetSocketAddress(config.getInetAddress("relayIp"), config.getInt("relayPort"));
+        NATHole hole = UDPHoleCreator.createHole(config.getString("token"), config.getInetAddress("targetIp"), natBypassServer);
         channelHandler = new ChannelHandler(hole.getSocket(), hole.getTarget());
-        for (String rule : rules) {
-            if(!rule.equals("")) {
-                parseRule(rule);
+        if(config.contains("rules")) {
+            for (String rule : config.getString("rules").split(",")) {
+                if(!rule.equals("")) {
+                    parseRule(rule);
+                }
             }
         }
         channelHandler.start();
+        BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
         while(true) {
             try {
                 String line = inFromUser.readLine();
