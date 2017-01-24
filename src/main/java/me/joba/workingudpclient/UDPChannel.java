@@ -17,7 +17,7 @@ import static me.joba.workingudpclient.UDPClient.ROUTES;
  *
  * @author Jonas
  */
-public class UDPChannel extends Thread {
+public class UDPChannel extends Channel {
 
     private final DatagramSocket socket;
     private final ChannelHandler channelHandler;
@@ -31,10 +31,12 @@ public class UDPChannel extends Thread {
         this.localDestination = localDestination;
     }
 
+    @Override
     public void setChannel(byte channelId) {
         this.channelId = channelId;
     }
     
+    @Override
     public void send(byte[] data) throws IOException {
         DatagramPacket packet = new DatagramPacket(data, data.length, localDestination);
         socket.send(packet);
@@ -67,20 +69,17 @@ public class UDPChannel extends Thread {
         }
     }
 
-    public void handlePacket(DatagramPacket packet) throws IOException {
+    private void handlePacket(DatagramPacket packet) throws IOException {
         byte[] data = new byte[packet.getLength()];
         System.arraycopy(packet.getData(), packet.getOffset(), data, 0, packet.getLength());
         channelHandler.send(channelId, data);
     }
 
+    @Override
     public void close() {
         socket.close();
     }
-
-    public DatagramSocket getSocket() {
-        return socket;
-    }
-
+    
     @Override
     public String toString() {
         return localDestination.toString();

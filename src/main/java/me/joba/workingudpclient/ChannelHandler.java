@@ -44,7 +44,7 @@ public class ChannelHandler extends Thread {
         Thread keepAlive = new Thread() {
             @Override
             public void run() {
-                DatagramPacket ping = new DatagramPacket(new byte[]{1}, 1, outgoingAddress);
+                DatagramPacket ping = new DatagramPacket(new byte[]{0}, 1, outgoingAddress);
                 while(true) {
                     try {
                         outgoing.send(ping);
