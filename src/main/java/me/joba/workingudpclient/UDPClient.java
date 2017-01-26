@@ -9,17 +9,19 @@ import com.martiansoftware.jsap.FlaggedOption;
 import com.martiansoftware.jsap.JSAP;
 import com.martiansoftware.jsap.JSAPResult;
 import java.io.BufferedReader;
+import me.joba.workingudpclient.tcp.TCPChannel;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import me.joba.workingudpclient.UDPHoleCreator.NATHole;
 
 /**
@@ -27,7 +29,7 @@ import me.joba.workingudpclient.UDPHoleCreator.NATHole;
  * @author Jonas
  */
 public class UDPClient {
-
+    
     public static final Map<Byte, Channel> ROUTES = new HashMap<>();
     private static final int DEFAULT_PORT = 52125;
     private static ChannelHandler channelHandler;
@@ -35,28 +37,28 @@ public class UDPClient {
     public static void main(String[] args) throws Exception {
         JSAP jsap = new JSAP();
         FlaggedOption targetIp = new FlaggedOption("targetIp")
-                                    .setStringParser(JSAP.INETADDRESS_PARSER)
-                                    .setRequired(true)
-                                    .setShortFlag('d')
-                                    .setLongFlag("destination");
+                .setStringParser(JSAP.INETADDRESS_PARSER)
+                .setRequired(true)
+                .setShortFlag('d')
+                .setLongFlag("destination");
         FlaggedOption relayIp = new FlaggedOption("relayIp")
-                                    .setStringParser(JSAP.INETADDRESS_PARSER)
-                                    .setRequired(true)
-                                    .setShortFlag('r')
-                                    .setLongFlag("relay");
+                .setStringParser(JSAP.INETADDRESS_PARSER)
+                .setRequired(true)
+                .setShortFlag('r')
+                .setLongFlag("relay");
         FlaggedOption relayPort = new FlaggedOption("relayPort")
-                                    .setStringParser(JSAP.INTEGER_PARSER)
-                                    .setRequired(false)
-                                    .setDefault(String.valueOf(DEFAULT_PORT))
-                                    .setShortFlag('p')
-                                    .setLongFlag("port");
+                .setStringParser(JSAP.INTEGER_PARSER)
+                .setRequired(false)
+                .setDefault(String.valueOf(DEFAULT_PORT))
+                .setShortFlag('p')
+                .setLongFlag("port");
         FlaggedOption token = new FlaggedOption("token")
-                                    .setRequired(true)
-                                    .setShortFlag('t')
-                                    .setLongFlag("token");
+                .setRequired(true)
+                .setShortFlag('t')
+                .setLongFlag("token");
         FlaggedOption rules = new FlaggedOption("rules")
-                                    .setRequired(false)
-                                    .setLongFlag("rules");
+                .setRequired(false)
+                .setLongFlag("rules");
         jsap.registerParameter(targetIp);
         jsap.registerParameter(relayIp);
         jsap.registerParameter(relayPort);
@@ -71,36 +73,34 @@ public class UDPClient {
         }
         InetSocketAddress natBypassServer = new InetSocketAddress(config.getInetAddress("relayIp"), config.getInt("relayPort"));
         NATHole hole = UDPHoleCreator.createHole(config.getString("token"), config.getInetAddress("targetIp"), natBypassServer);
-        channelHandler = new ChannelHandler(hole.getSocket(), hole.getTarget());
-        if(config.contains("rules")) {
+        channelHandler = new ChannelHandler(hole.getSocket());
+        if (config.contains("rules")) {
             for (String rule : config.getString("rules").split(",")) {
-                if(!rule.equals("")) {
+                if (!rule.equals("")) {
                     parseRule(rule);
                 }
             }
         }
         channelHandler.start();
         BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
-        while(true) {
+        while (true) {
             try {
                 String line = userInput.readLine();
-                if(line.equalsIgnoreCase("exit")) {
+                if (line.equalsIgnoreCase("exit")) {
                     System.exit(0);
-                }
-                else if(line.equalsIgnoreCase("show")) {
-                    for(Entry<Byte, Channel> entry : ROUTES.entrySet()) {
+                } else if (line.equalsIgnoreCase("show")) {
+                    for (Entry<Byte, Channel> entry : ROUTES.entrySet()) {
                         System.out.println(entry.getKey() + ": " + entry.getValue());
                     }
-                }
-                else {
+                } else {
                     parseRule(line);
                 }
-            } catch(IOException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
-
+    
     public static void parseRule(String rule) throws SocketException, UnknownHostException, IOException {
         switch (rule.charAt(0)) {
             case '+': {
@@ -126,7 +126,7 @@ public class UDPClient {
                 Channel socket;
                 switch (type) {
                     case 't':
-                        socket = new TCPChannel(channel, address, port, channelHandler);
+                        socket = new TCPChannel(channel, channelHandler, address, port);
                         break;
                     case 'u':
                         socket = new UDPChannel(channel, new DatagramSocket(), channelHandler, new InetSocketAddress(address, port));
@@ -168,10 +168,10 @@ public class UDPClient {
                 Channel socket;
                 switch (type) {
                     case 't':
-                        socket = new WaitingTCPChannel(channel, port, channelHandler);
+                        socket = new TCPChannel(channel, channelHandler, port);
                         break;
                     case 'u':
-                        socket = new UDPChannel(channel, new DatagramSocket(), channelHandler, null);
+                        socket = new UDPChannel(channel, new DatagramSocket(port), channelHandler, null);
                         break;
                     default:
                         return;

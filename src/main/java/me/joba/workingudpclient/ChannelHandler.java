@@ -6,12 +6,10 @@
 package me.joba.workingudpclient;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Arrays;
 import static me.joba.workingudpclient.UDPClient.ROUTES;
 
 /**
@@ -20,56 +18,66 @@ import static me.joba.workingudpclient.UDPClient.ROUTES;
  */
 public class ChannelHandler extends Thread {
 
-    private final DatagramSocket outgoing;
-    private final InetSocketAddress outgoingAddress;
+    private final Socket outgoing;
+    public static final byte CHANNEL_KEEP_ALIVE = 0;
+    public static final byte CHANNEL_KILL_SOCKET = -1;
+    private int sent, received;
 
-    public ChannelHandler(DatagramSocket outgoing, InetSocketAddress outgoingAddress) {
+    public ChannelHandler(Socket outgoing) {
         this.outgoing = outgoing;
-        this.outgoingAddress = outgoingAddress;
     }
 
     public void send(byte channel, byte[] dataRaw) throws IOException {
-        //System.out.println(Arrays.hashCode(dataRaw) + " " + Arrays.toString(dataRaw) + " -> " + channel);
-        byte[] data = ByteBuffer.allocate(dataRaw.length + 1)
+        System.out.println("Out: " + bytesToHex(dataRaw));
+        byte[] data = ByteBuffer.allocate(dataRaw.length + 5)
                 .put(channel)
-                .put(dataRaw)
+                .putInt(dataRaw.length)
+                .put(dataRaw, 0, dataRaw.length)
                 .array();
-        DatagramPacket packet = new DatagramPacket(data, data.length);
-        packet.setSocketAddress(outgoingAddress);
-        outgoing.send(packet);
+        outgoing.getOutputStream().write(data);
+        outgoing.getOutputStream().flush();
     }
+    
+    final protected static char[] hexArray = "0123456789abcdef".toCharArray();
+public static String bytesToHex(byte[] bytes) {
+    char[] hexChars = new char[bytes.length * 2];
+    for ( int j = 0; j < bytes.length; j++ ) {
+        int v = bytes[j] & 0xFF;
+        hexChars[j * 2] = hexArray[v >>> 4];
+        hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+    }
+    return new String(hexChars);
+}
     
     @Override
     public void run() {
-        Thread keepAlive = new Thread() {
-            @Override
-            public void run() {
-                DatagramPacket ping = new DatagramPacket(new byte[]{0}, 1, outgoingAddress);
-                while(true) {
-                    try {
-                        outgoing.send(ping);
-                        Thread.sleep(1000 * 10);
-                    } catch (InterruptedException | IOException ex) {
-                        Logger.getLogger(ChannelHandler.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-            }
-        };
-        keepAlive.start();
-        byte[] buffer = new byte[65535];
-        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        byte[] buffer = new byte[2096928];
         while (true) {
             try {
-                outgoing.receive(packet);
-                //ByteBuffer bbuff = ByteBuffer.wrap(packet.getData());
-                
-                byte[] data = new byte[packet.getLength() - 1];
-                System.arraycopy(packet.getData(), packet.getOffset() + 1, data, 0, packet.getLength() - 1);
-                //bbuff.get(data, packet.getOffset() + 1, packet.getLength() - 1);
-                byte channel = packet.getData()[packet.getOffset()];
-                //System.out.println(channel + " -> " + Arrays.hashCode(data) + " " + Arrays.toString(data));
-                if(channel != 0 && ROUTES.containsKey(channel)) {
-                    ROUTES.get(channel).send(data);
+                int size = outgoing.getInputStream().read(buffer);
+                if(size == -1) {
+                    System.out.println("UDP Stream closed");
+                    return;
+                }
+                ByteBuffer bbuff = ByteBuffer.wrap(buffer, 0, size);
+                while(bbuff.hasRemaining()) {
+                    byte channel = bbuff.get();
+                    int length = bbuff.getInt();
+                    byte[] data = new byte[length];
+                    bbuff.get(data);
+                    System.out.println(channel + "In: " + bytesToHex(data));
+                    if(channel > 0 && ROUTES.containsKey(channel)) {
+                        ROUTES.get(channel).send(data);
+                    }
+                    else {
+                        switch(channel) {
+                            case CHANNEL_KILL_SOCKET: {
+                                byte target = data[0];
+                                ROUTES.get(target).killSocket();
+                                break;
+                            }
+                        }
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();

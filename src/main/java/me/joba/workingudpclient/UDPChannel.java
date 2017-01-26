@@ -49,6 +49,7 @@ public class UDPChannel extends Channel {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             if (localDestination == null) {
                 socket.receive(packet);
+                System.out.println("Received");
                 this.localDestination = new InetSocketAddress(packet.getAddress(), packet.getPort());
                 handlePacket(packet);
                 ROUTES.put(channelId, this);
@@ -83,5 +84,10 @@ public class UDPChannel extends Channel {
     @Override
     public String toString() {
         return localDestination.toString();
+    }
+
+    @Override
+    public void killSocket() {
+        
     }
 }

@@ -15,4 +15,5 @@ public abstract class Channel extends Thread {
     public abstract void setChannel(byte channelId);
     public abstract void send(byte[] data) throws IOException;
     public abstract void close();
+    public abstract void killSocket();
 }
