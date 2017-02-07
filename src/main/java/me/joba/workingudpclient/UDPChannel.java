@@ -11,7 +11,6 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import static me.joba.workingudpclient.UDPClient.ROUTES;
 
 /**
  *
@@ -52,7 +51,7 @@ public class UDPChannel extends Channel {
                 System.out.println("Received");
                 this.localDestination = new InetSocketAddress(packet.getAddress(), packet.getPort());
                 handlePacket(packet);
-                ROUTES.put(channelId, this);
+                channelHandler.createChannel(channelId, this);
                 System.out.println("Opened channel: " + channelId);
             }
             while (!socket.isClosed()) {
@@ -89,5 +88,10 @@ public class UDPChannel extends Channel {
     @Override
     public void killSocket() {
         
+    }
+
+    @Override
+    public byte getChannelId() {
+        return channelId;
     }
 }

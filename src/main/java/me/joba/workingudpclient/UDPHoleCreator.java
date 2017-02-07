@@ -12,9 +12,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import net.rudp.ReliableServerSocket;
-import net.rudp.ReliableSocket;
-import net.rudp.ReliableSocketProfile;
 
 /**
  *
@@ -40,7 +37,6 @@ public class UDPHoleCreator {
         ByteBuffer buff = ByteBuffer.wrap(receivePacket.getData(), receivePacket.getOffset(), receivePacket.getLength());
         byte[] portArray = new byte[2];
         buff.get(portArray);
-        boolean isServer = buff.get() != 0;
         port = Short.toUnsignedInt(ByteBuffer.wrap(portArray).getShort());
         System.out.println("Remote port: " + port);
         InetSocketAddress targetHole = new InetSocketAddress(target, port);
@@ -67,28 +63,7 @@ public class UDPHoleCreator {
                         System.out.println("Sending: 1");
                         targetHole = (InetSocketAddress)confirm.getSocketAddress();
                     }
-                    Socket reliableSocket;
-                    System.out.println("Migrating to reliable connection...");
-                    ReliableSocketProfile profile = new ReliableSocketProfile(255, 255, 65535, 255, 255, 255, 255, 255, 65535, 65535, 65535);
-                    if(isServer) {
-                        ReliableServerSocket rss = new ReliableServerSocket(socket, 0, profile);
-                        reliableSocket = rss.accept();
-                    }
-                    else {
-                        reliableSocket = new ReliableSocket(socket, profile);
-                        System.out.println("Set size");
-                        reliableSocket.connect(targetHole);
-                    }
-                    System.out.println(reliableSocket.getReceiveBufferSize());
-                    System.out.println(reliableSocket.getSendBufferSize());
-                    System.out.println("Sending: 2");
-                    reliableSocket.getOutputStream().write(2);
-                    reliableSocket.getOutputStream().flush();
-                    if(reliableSocket.getInputStream().read() == 2) {
-                        System.out.println("Received: 2");
-                        System.out.println("Connection established.");
-                        return new NATHole(reliableSocket, targetHole);
-                    }
+                    return new NATHole(socket, targetHole);
                 default:
                     throw new IOException("Invalid data");
             }
@@ -98,10 +73,10 @@ public class UDPHoleCreator {
 
     public static class NATHole {
 
-        private final Socket socket;
+        private final DatagramSocket socket;
         private final InetSocketAddress target;
 
-        public NATHole(Socket socket, InetSocketAddress target) {
+        public NATHole(DatagramSocket socket, InetSocketAddress target) {
             this.socket = socket;
             this.target = target;
         }
@@ -110,7 +85,7 @@ public class UDPHoleCreator {
             return target;
         }
 
-        public Socket getSocket() {
+        public DatagramSocket getSocket() {
             return socket;
         }
     }

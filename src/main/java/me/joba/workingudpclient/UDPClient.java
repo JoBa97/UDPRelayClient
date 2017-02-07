@@ -17,11 +17,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import me.joba.workingudpclient.UDPHoleCreator.NATHole;
 
 /**
@@ -30,7 +25,6 @@ import me.joba.workingudpclient.UDPHoleCreator.NATHole;
  */
 public class UDPClient {
     
-    public static final Map<Byte, Channel> ROUTES = new HashMap<>();
     private static final int DEFAULT_PORT = 52125;
     private static ChannelHandler channelHandler;
     
@@ -73,7 +67,7 @@ public class UDPClient {
         }
         InetSocketAddress natBypassServer = new InetSocketAddress(config.getInetAddress("relayIp"), config.getInt("relayPort"));
         NATHole hole = UDPHoleCreator.createHole(config.getString("token"), config.getInetAddress("targetIp"), natBypassServer);
-        channelHandler = new ChannelHandler(hole.getSocket());
+        channelHandler = new ChannelHandler(hole.getSocket(), hole.getTarget());
         if (config.contains("rules")) {
             for (String rule : config.getString("rules").split(",")) {
                 if (!rule.equals("")) {
@@ -89,9 +83,7 @@ public class UDPClient {
                 if (line.equalsIgnoreCase("exit")) {
                     System.exit(0);
                 } else if (line.equalsIgnoreCase("show")) {
-                    for (Entry<Byte, Channel> entry : ROUTES.entrySet()) {
-                        System.out.println(entry.getKey() + ": " + entry.getValue());
-                    }
+                    channelHandler.showChannels();
                 } else {
                     parseRule(line);
                 }
@@ -108,7 +100,7 @@ public class UDPClient {
                 rule = rule.substring(2);
                 String[] data = rule.split("-");
                 byte channel = Byte.parseByte(data[0]);
-                if (ROUTES.containsKey(channel)) {
+                if (channelHandler.hasChannel(channel)) {
                     System.out.println("Channel " + channel + " already exists.");
                     return;
                 }
@@ -135,29 +127,19 @@ public class UDPClient {
                         return;
                 }
                 socket.start();
-                ROUTES.put(channel, socket);
+                channelHandler.createChannel(channel, socket);
                 break;
             }
             case '-': {
                 byte channel = Byte.parseByte(rule.substring(1));
-                ROUTES.get(channel).close();
-                ROUTES.remove(channel);
+                channelHandler.destroyChannel(channel);
                 break;
             }
             case '|': {
                 String[] channels = rule.substring(1).split(",");
                 byte channel1 = Byte.parseByte(channels[0]);
                 byte channel2 = Byte.parseByte(channels[1]);
-                Channel udpc1 = ROUTES.get(channel1);
-                Channel udpc2 = ROUTES.get(channel2);
-                if (udpc1 != null) {
-                    udpc1.setChannel(channel2);
-                    ROUTES.put(channel2, udpc1);
-                }
-                if (udpc2 != null) {
-                    udpc2.setChannel(channel1);
-                    ROUTES.put(channel1, udpc2);
-                }
+                channelHandler.swapChannels(channel1, channel2);
                 break;
             }
             case '?': {
@@ -177,7 +159,7 @@ public class UDPClient {
                         return;
                 }
                 socket.start();
-                ROUTES.put(channel, socket);
+                channelHandler.createChannel(channel, socket);
                 break;
             }
             default: {

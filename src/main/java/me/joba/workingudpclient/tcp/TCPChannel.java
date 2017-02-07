@@ -6,7 +6,12 @@
 package me.joba.workingudpclient.tcp;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.logging.Level;
@@ -20,27 +25,31 @@ import me.joba.workingudpclient.ChannelHandler;
  */
 public class TCPChannel extends Channel {
 
-    private final ChannelHandler channelHandler;
     private Socket socket;
+    private final ChannelHandler handler;
     private byte channelId;
     private final int port;
     private final InetAddress targetAddress;
     private boolean shutdown = false;
     private final ServerSocket server;
+    private InputStream remoteIn;
+    private BidirectionalUDPStream remoteOut;
     
-    public TCPChannel(byte channelId, ChannelHandler channelHandler, InetAddress targetAddress, int targetPort) {
+    public TCPChannel(byte channelId, ChannelHandler handler, InetAddress targetAddress, int targetPort) throws IOException {
         this.channelId = channelId;
         this.port = targetPort;
-        this.channelHandler = channelHandler;
         this.targetAddress = targetAddress;
-        server = null;
+        this.handler = handler;
+        server = null;    
+        remoteOut = new BidirectionalUDPStream(channelId, handler, this::sendOut);
     }
     
-    public TCPChannel(byte channelId, ChannelHandler channelHandler, int listeningPort) throws IOException {
+    public TCPChannel(byte channelId, ChannelHandler handler, int listeningPort) throws IOException {
         this.channelId = channelId;
-        this.channelHandler = channelHandler;
         this.port = listeningPort;
         this.targetAddress = null;
+        this.handler = handler;    
+        remoteOut = new BidirectionalUDPStream(channelId, handler, this::sendOut);
         server = new ServerSocket(listeningPort);
     }
 
@@ -50,15 +59,23 @@ public class TCPChannel extends Channel {
     }
 
     @Override
-    public void send(byte[] data) throws IOException {
+    public void send(byte[] data) throws Exception {
+        remoteOut.receive(data);
+    }
+    
+    private void sendOut(byte[] data) {
         if (socket.isClosed()) {
             return;
         }
         try {
             socket.getOutputStream().write(data);
-                            System.out.println("Sent to MC");
+            System.out.println("Sent to MC");
         } catch (IOException ex) {
-            closeSocket();
+            try {
+                closeSocket();
+            } catch (IOException ex1) {
+                Logger.getLogger(TCPChannel.class.getName()).log(Level.SEVERE, null, ex1);
+            }
         }
     }
 
@@ -74,7 +91,7 @@ public class TCPChannel extends Channel {
     @Override
     public void run() {
         try {
-            byte[] buffer = new byte[60000];
+            byte[] buffer = new byte[65536];
             while (!shutdown) {
                 createSocket();
                 try {
@@ -86,11 +103,10 @@ public class TCPChannel extends Channel {
                             System.out.println("Rec from MC");
                             byte[] data = new byte[read];
                             System.arraycopy(buffer, 0, data, 0, read);
-                            channelHandler.send(channelId, data);
+                            remoteOut.write(data);
                         }
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
                     closeSocket();
                 }
             }
@@ -133,5 +149,10 @@ public class TCPChannel extends Channel {
         } catch (IOException ex) {
             Logger.getLogger(TCPChannel.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+
+    @Override
+    public byte getChannelId() {
+        return channelId;
     }
 }
