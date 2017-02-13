@@ -10,6 +10,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 
 /**
@@ -18,11 +19,13 @@ import java.nio.ByteBuffer;
  */
 public class UDPHoleCreator {
 
-    public static NATHole createHole(String tokenString, InetAddress target, InetSocketAddress server) throws IOException {
+    public static NATHole createHole(String tokenString, InetAddress target, InetSocketAddress server) throws IOException, InterruptedException {
         System.out.println("Punching hole...");
         System.out.println("Connecting to remote server: " + server);
         int port;
         DatagramSocket socket = new DatagramSocket();
+        socket.setSendBufferSize(60000);
+        socket.setReceiveBufferSize(60000);
         byte[] token = tokenString.getBytes();
         DatagramPacket initPacket = new DatagramPacket(token, token.length, server);
         System.out.println("Sending token...");
@@ -31,9 +34,10 @@ public class UDPHoleCreator {
         final DatagramPacket receivePacket = new DatagramPacket(buffer, buffer.length);
         System.out.println("Receiving port...");
         socket.receive(receivePacket);
-        byte[] data = new byte[2];
-        System.arraycopy(receivePacket.getData(), receivePacket.getOffset(), data, 0, receivePacket.getLength());
-        port = Short.toUnsignedInt(ByteBuffer.wrap(data).getShort());
+        ByteBuffer buff = ByteBuffer.wrap(receivePacket.getData(), receivePacket.getOffset(), receivePacket.getLength());
+        byte[] portArray = new byte[2];
+        buff.get(portArray);
+        port = Short.toUnsignedInt(ByteBuffer.wrap(portArray).getShort());
         System.out.println("Remote port: " + port);
         InetSocketAddress targetHole = new InetSocketAddress(target, port);
         boolean receivedZero = false;
@@ -59,7 +63,6 @@ public class UDPHoleCreator {
                         System.out.println("Sending: 1");
                         targetHole = (InetSocketAddress)confirm.getSocketAddress();
                     }
-                    System.out.println("Connection established.");
                     return new NATHole(socket, targetHole);
                 default:
                     throw new IOException("Invalid data");
