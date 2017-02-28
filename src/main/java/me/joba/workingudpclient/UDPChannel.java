@@ -48,11 +48,11 @@ public class UDPChannel extends Channel {
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
             if (localDestination == null) {
                 socket.receive(packet);
-                System.out.println("Received");
+                
                 this.localDestination = new InetSocketAddress(packet.getAddress(), packet.getPort());
                 handlePacket(packet);
                 channelHandler.createChannel(channelId, this);
-                System.out.println("Opened channel: " + channelId);
+                
             }
             while (!socket.isClosed()) {
                 try {

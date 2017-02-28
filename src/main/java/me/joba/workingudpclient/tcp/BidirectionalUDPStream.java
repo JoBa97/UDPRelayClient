@@ -69,7 +69,7 @@ public class BidirectionalUDPStream extends OutputStream {
                 }
             }
             if (dgram != null) {
-                System.out.println("Sending dram " + dgram.length);
+                
                 send(seq, dgram);
             }
             synchronized (swLock) {
@@ -91,16 +91,16 @@ public class BidirectionalUDPStream extends OutputStream {
     }
 
     public void receive(byte[] buffer) throws Exception {
-        System.out.println(buffer.length);
+        
         if (buffer[0] == 0xff && buffer.length >= 3) {
-            System.out.println("ack");
+            
             // that was a packet from the first stager,
             // just ack it
             handler.send(channelId, new byte[]{buffer[1]});
             return;
         }
         if (buffer.length < 8 || buffer.length > 508) {
-            System.out.println("???");
+            
             return;
         }
         int flags = ((buffer[0] & 0xFF) >> 6);
@@ -108,21 +108,21 @@ public class BidirectionalUDPStream extends OutputStream {
             return;
         }
         long seq = ((buffer[0] & 0x3FL) << 56) | ((buffer[1] & 0xFFL) << 48) | ((buffer[2] & 0xFFL) << 40) | (buffer[3] & 0xFFL + 32) | ((buffer[4] & 0xFFL) << 24) | ((buffer[5] & 0xFFL) << 16) | ((buffer[6] & 0xFFL) << 8) | (buffer[7] & 0xFFL);
-        System.out.println("Seq " + seq);
-        System.out.println("inSeq " + inSeq);
+        
+        
         switch (flags) {
             case 0: // data
                 if (seq == inSeq) {
                     inSeq++;
                     byte[] data = new byte[buffer.length - 8];
                     System.arraycopy(buffer, 8, data, 0, data.length);
-                    System.out.println("Accepting");
+                    
                     writeTo.accept(data);
                 }
                 else if (seq > inSeq) {
                     // send ack so that peer resends missing
                     // data
-                    System.out.println("Send a");
+                    
                     send(inSeq | 0x8000000000000000L, new byte[8]);
                 }
                 break;
@@ -130,7 +130,7 @@ public class BidirectionalUDPStream extends OutputStream {
                 if (seq >= inSeq) {
                     // send ack so that peer resends missing
                     // data if needed
-                    System.out.println("Send b");
+                    
                     send(inSeq | 0x8000000000000000L, new byte[8]);
                 }
                 break;
