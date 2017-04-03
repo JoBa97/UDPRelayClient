@@ -32,8 +32,7 @@ public class TCPChannel extends Channel {
     private final InetAddress targetAddress;
     private boolean shutdown = false;
     private final ServerSocket server;
-    private InputStream remoteIn;
-    private BidirectionalUDPStream remoteOut;
+    private final BidirectionalUDPStream remoteOut;
     
     public TCPChannel(byte channelId, ChannelHandler handler, InetAddress targetAddress, int targetPort) throws IOException {
         this.channelId = channelId;
@@ -69,7 +68,7 @@ public class TCPChannel extends Channel {
         }
         try {
             socket.getOutputStream().write(data);
-            System.out.println("Sent to MC");
+            
         } catch (IOException ex) {
             try {
                 closeSocket();
@@ -100,7 +99,7 @@ public class TCPChannel extends Channel {
                         if (read == -1) {
                             closeSocket();
                         } else {
-                            System.out.println("Rec from MC");
+                            
                             byte[] data = new byte[read];
                             System.arraycopy(buffer, 0, data, 0, read);
                             remoteOut.write(data);

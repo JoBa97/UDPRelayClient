@@ -101,7 +101,7 @@ public class UDPClient {
                 String[] data = rule.split("-");
                 byte channel = Byte.parseByte(data[0]);
                 if (channelHandler.hasChannel(channel)) {
-                    System.out.println("Channel " + channel + " already exists.");
+                    
                     return;
                 }
                 rule = data[1];
@@ -163,7 +163,7 @@ public class UDPClient {
                 break;
             }
             default: {
-                System.out.println("Unknown command: " + rule);
+                
             }
         }
     }

@@ -33,7 +33,7 @@ public class ChannelHandler extends Thread {
     }
 
     public void send(byte channel, byte[] dataRaw) throws IOException {
-        System.out.println("Out: " + bytesToHex(dataRaw));
+        
         byte[] data = ByteBuffer.allocate(dataRaw.length + 1)
                 .put(channel)
                 .put(dataRaw, 0, dataRaw.length)
@@ -64,7 +64,7 @@ public class ChannelHandler extends Thread {
                 byte channel = buffer[packet.getOffset()];
                 byte[] data = new byte[packet.getLength() - 1];
                 System.arraycopy(buffer, packet.getOffset() + 1, data, 0, data.length);
-                System.out.println(channel + "In: " + bytesToHex(data));
+                
                 if (channel > 0 && ROUTES.containsKey(channel)) {
                     ROUTES.get(channel).send(data);
                 }
